@@ -3,22 +3,55 @@
     <head>
         <meta charset = "utf-8">
         <meta name = "viewport" content = "width=device-width, initial-scale=1">
-        <title>Space Mouse</title>
+        <title>Space Cat</title>
         <meta name = "author" content = "Hashbrownz">
         <meta name = "description" content = "A Javascript clone of the classic game 'Space Mouse'">
         <link rel = "stylesheet" type = "text/css" href = "space-cat.css">
     </head>
     <body>
-        <h1>Space Cat</h1>
-        <p>A Space Mouse clone</p>
         <div id = 'game'>
             <!-- We'll put our timer here-->
+            <div id = 'timer'>
+                <div id = 'shell'>
+                    <div></div>
+                </div>
+                <p>Air</p>
+            </div>
             <canvas id = "display" width = "576" height = "600"></canvas>
             <!-- We'll put our score, lives, and keys display here-->
-        </div>
-        <p><b>DEBUG:</b></p>
-        <p id = 'pinput'>Key: </p>
-        <p id = 'ascii'></p>
+            <div id = "hud">
+                <h1>Space Cat</h1>
+                <div class = 'section'>
+                    <p>SCORE:</p>
+                    <p class = 'right' id = 'score'>0000000</p>
+                </div>
+                <div class = 'section'>
+                    <p>SCENE:</p>
+                    <p class = 'right' id = 'scene'>00</p>
+                </div>
+                <div class = 'section'>
+                    <p>FLOOR:</p>
+                    <p class = 'right' id = 'floor'>00</p>
+                </div>
+                <div class = 'section'>
+                    <p id = 'context'></p>
+                </div>
+                <div class = 'icons'>
+                    <div id = 'keys'>
+                        <img class = 'icon' src = 'images/Key.png'>
+                        <img class = 'icon' src = 'images/Key.png'>
+                        <img class = 'icon' src = 'images/Key.png'>
+                    </div>
+                    <div id = 'lives'>
+                        <img class = 'icon' src = 'images/Life.png'>
+                        <img class = 'icon' src = 'images/Life.png'>
+                        <img class = 'icon' src = 'images/Life.png'>
+                    </div>
+                </div>
+            </div>
+        </div><!--End Game-->
+        <p class = 'copy'>A Game by <em>Hashbrownz</em></p>
+        <script type = 'text/javascript' src = 'levels.js'></script>
         <script type = "text/javascript" src = "space-cat.js"></script>
     </body>
 </html>

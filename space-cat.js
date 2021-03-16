@@ -51,6 +51,7 @@ class Player{
                             }else if(keys > 0 && currentpos.kind == 'door'){
                                 //if it is a door and  you got them keys, open dat bitch
                                 keys--;
+                                drawKeys();
                                 grid[this.y][this.x] = 'empty';
                             }else{
                                 //Cannot pass through a solid wall.  The player is moved to their last position.
@@ -60,15 +61,24 @@ class Player{
                         }else{
                             if(currentpos.kind == 'key'){
                                 score+=_pvKey;
+                                updateScore(_pvKey);
                                 keys++;
+                                drawKeys();
                             }else{
                                 lives++;
+                                drawLives();
                             }
                             grid[this.y][this.x] = 'empty';
                         }
                     }
-                    if(lastpos.y > this.y)score+=10; //Get 10 points for advancing a floor.
-                    if(this.y == goal)console.log('You Win!');
+                    if(lastpos.y > this.y){
+                        updateFloor();
+                        updateScore(_pvFloor); //Get 10 points for advancing a floor.
+                    }
+                    if(this.y == goal){
+                        this.alive = false;
+                        this.win = true;
+                    }
                     this.spd = 0;
                 }
             }
@@ -294,18 +304,24 @@ class View{
 
 //Initialization
 const canvas = document.getElementById('display');
+const context = document.getElementById('context');
 const ctx = canvas.getContext('2d');
 const gridChars = {'#':'wall','B':'border','D':'drywall','d':'door','k':'key','l':'life','@':'player','G':'goal', '1':'bvert','2':'bhor','3':'bbcl','4':'bbcr','5':'bbtl','6':'bbtr'};
-const controller = trackKeys(['ArrowUp','ArrowLeft','ArrowRight','r','R']);
+const controller = trackKeys(['ArrowUp','ArrowLeft','ArrowRight','r','R',' ','Spacebar','h','H','y','Y','n','N']);
 //Game Parameters
 const scale = 24;
-const speed = 5; //how many frames pass before an actor can update their position.
+const speed = 7; //how many frames pass before an actor can update their position.
 const actorCap = 10;
 const sTime = 300; //super time in frames
 const _pvCoin = 50; //Points for picking up a coin
 const _pvFloor = 10; //Points for advancing a floor
 const _pvKey = 25; //Points for picking up a key
 const _pvEnemy = 100; //Points for killing an enemy
+const _second = 60;
+const _maxair = 90;
+//Levels
+//_levels[0] == start screen
+const _levels = [_title,[1,2,1],[2,1,3,1,4,3,2,1,1],[6,5,4,3,2,1,2,1],[1,9,8,7,6,5,4,3,2,1]];
 //Sprites
 const _spr_player = document.createElement('img');
 _spr_player.src = 'images/Cat.png';
@@ -327,8 +343,8 @@ _spr_life.src = 'images/Life.png';
 let input;
 let player; // the variable that refers to the current player object
 let actors = []; // an array that contains all of the onscreen actors
-let keys = 0; // the amount of keys the player has
-let lives = 0; // the amount of lives the player has
+let keys = 1; // the amount of keys the player has
+let lives = 1; // the amount of lives the player has
 let score = 0; // the players current score
 let grid; // the grid is our display divided by (scale) pixel cells.  It has 24 columns and 25 rows.
 let view; // the viewport
@@ -338,59 +354,96 @@ let timer_spawn = 60;
 let timer_reset = 150;
 let currentfloor = 0;
 let currentlevel = 0;
+let air = _maxair;
+let timer_air = 0;
+
+loadTitle();
+game();
 
 function game(){
-    //getInput(['ArrowUp','ArrowLeft','ArrowRight']);
     function update(){
-        clock++;
-        getInput();
-        //update and redraw all sprites
-        player.update();
-        if(player.alive){
-            //Spawn Enemy
-            if(clock >= timer_spawn)spawnActor();
-            for(let actor of actors){
-                actor.update();
+        if(player){
+            clock++;
+            getInput();
+            //timer
+            if(player.alive){
+                timer_air++;
+                if(timer_air >= _second){
+                    timer_air = 0;
+                    air--;
+                    updateTimer();
+                }
             }
-            //Check for Collisions:
-            for(let actor of actors){
-                if(overlap(player,actor))touchActor(actor);
-            }
-        }else{
-            if(player.win){
-                //Handle or winning
+            //update and redraw all sprites
+            player.update();
+            if(player.alive){
+                //Spawn Enemy
+                if(clock >= timer_spawn)spawnActor();
+                for(let actor of actors){
+                    actor.update();
+                }
+                //Check for Collisions:
+                for(let actor of actors){
+                    if(overlap(player,actor))touchActor(actor);
+                }
             }else{
-                if(lives>=0){
-                    if(clock >= timer_reset){
-                        player.alive = true;
-                        player.frame = 0;
-                        player.yframe = 0;
-                        clock = 0;
-                        for(let a of actors){
-                            placeActor(a);
+                if(player.win){
+                    //Handle for winning
+                    currentlevel++;
+                    if(currentlevel >= _levels.length)currentlevel = 1;
+                    player.alive = true;
+                    loadLevel();
+                }else{
+                    if(lives>=0){
+                        if(clock >= timer_reset){
+                            player.alive = true;
+                            player.frame = 0;
+                            player.yframe = 0;
+                            clock = 0;
+                            timer_air = 0;
+                            air = _maxair;
+                            updateTimer();
+                            for(let a of actors){
+                                placeActor(a);
+                            }
+                        }
+                    }else{
+                        //Draw Game Over Screen
+                        context.innerHTML = "GAME OVER <BR> Play Again?<BR> <em>Y</em> / <em>N</em>";
+                        if(controller['y']||controller['Y'])startGame();
+                        if(controller['n']||controller['N']){
+                            player = undefined;
+                            currentlevel = 0;
+                            loadTitle();
                         }
                     }
-                }else{
-                    //Draw Game Over Screen
-                    console.log('Game Over!!!');
-                    //For now we'll put a simple R for restart
-                    if(controller['r']||controller['R'])restartGame();
                 }
+            }
+        }else{
+            if(controller[' ']||controller['Spacebar']){
+                startGame();
             }
         }
         //DRAWING:
         ctx.clearRect(0,0,canvas.width,canvas.height);
-        scrollView();
+        if(player){
+            scrollView();
+            player.draw();
+        }
         drawGrid(grid);
-        player.draw();
         drawActors();
-        drawGUI();
-        debug();
         requestAnimationFrame(update);
     }
     requestAnimationFrame(update);
 }
-
+function concatLevel(...tiles){
+    let level = _goal;
+    for(let tile of tiles){
+        level += _tiles[tile];
+    }
+    level += _start;
+    return level;
+}
 function buildLevel(level){
     let rows = level.trim().split('\n').map(l => [...l]);
     let grid = [];
@@ -458,8 +511,9 @@ function drawActors(){
     }
 }
 function drawGUI(){
-    let hud = document.getElementById('pinput');
-    hud.innerHTML = `Lives: ${lives} Keys: ${keys} Score: ${score}`;
+    //let hud = document.getElementById('pinput');
+    //hud.innerHTML = `Lives: ${lives} Keys: ${keys} Score: ${score}`;
+
 }
 function drawRect(ox,oy){
     let x = ox * scale;
@@ -486,7 +540,8 @@ function touchActor(actor){
     //do something
     if(actor.kind == 'enemy'){
         if(player.super){
-            score+=_pvEnemy;
+            //score+=_pvEnemy;
+            updateScore(_pvEnemy);
             actors.splice(actors.indexOf(actor),1);// remove the enemy from the actor array
         }else{
             //Player Death
@@ -495,17 +550,15 @@ function touchActor(actor){
             player.yframe = 0;
             player.spd = 0;
             lives--;
+            if(lives>=0)drawLives();
             clock = 0;
             //Remove all of the enemies from the current screen
             actors = removeEnemies();
-            if(lives<0){
-                //end game
-                console.log('game Over LOSER!!!');
-            }
         }
     }else{
         //we need code here for handling our super state
-        score+=_pvCoin;
+        //score+=_pvCoin;
+        updateScore(_pvCoin);
         player.super = true;
         player.stime = 0;
         actors.splice(actors.indexOf(actor),1); // remove the coin from the actor array
@@ -585,70 +638,89 @@ function removeEnemies(){
     }
     return output;
 }
-function restartGame(){
-    console.log('RESTARTING...');
+function startGame(){
+    //clear context message
+    context.innerHTML = '';
+    //reinitialize values
+    currentlevel = 1;
     lives = 3;
-    keys = 0;
+    keys = 1;
     score = 0;
+    air = _maxair;
     actors = [];
     clock = 0;
-    grid = buildLevel(testlevel);
-    view = setView(grid);
+    updateScore(0);
+    updateTimer();
+    drawKeys();
+    drawLives();
+    loadLevel();
 }
 function endLevel(){
     player.alive = false; //keep the player from moving / receiving input
     player.win = true; //display a victory animation as opposed to the death animation
 }
-
-let testlevel = `
-B2222222222222222222222B
-G......................B
-B############.#####.###B
-B......................B
-B#.##.##.##.##.##.##.##B
-B......................B
-B############.#####.###B
-B......................B
-B#.##.##.##.##.##.##.##B
-B......................B
-B############.#####.###B
-B......................B
-B#.##.##.##.##.##.##.##B
-B......................B
-B#########...##########B
-B......................B
-B##...#################B
-B......................B
-B############.#####.###B
-B......................B
-B#.##.##.##.##.##.##.##B
-B......................B
-B#########...##########B
-B......................B
-B#####..#####.#####.###B
-B......................B
-B#.##.##.##.##.##.##.##B
-B..............d.......B
-B#########DDD##########B
-B......................B
-B...k............l.....B
-B#####..#####.#####.###B
-B......................B
-B222222226...5222222222B
-B........1...1.........B
-B222222224...3222222222B
-B......................B
-B#####..#####.#####.###B
-B.@....................B
-B2222222222222222222222B
-`;
-
-grid = buildLevel(testlevel);
-view = setView(grid);
-game();
+function updateFloor(){
+    currentfloor = grid.length - player.y - 4;
+    document.getElementById('floor').innerHTML = currentfloor.toString();
+}
+function updateScore(points){
+    let s = document.getElementById('score');
+    score += points;
+    s.innerHTML = score.toString().padStart(7,'0');
+}
+function updateTimer(){
+    let p = Math.floor((air / _maxair) * 100);
+    let timer = document.querySelector('#shell > div');
+    timer.style.height = `${p}%`;
+}
+function drawKeys(){
+    const k = document.getElementById('keys');
+    while (k.firstChild){
+        k.removeChild(k.firstChild);
+    }
+    for(let i = 0; i < keys; i++){
+        let ki = document.createElement('img');
+        ki.src = 'images/Key.png';
+        ki.className = 'icon';
+        k.appendChild(ki);
+    }
+}
+function drawLives(){
+    const l = document.getElementById('lives');
+    while (l.firstChild){
+        l.removeChild(l.firstChild);
+    }
+    for(let i = 0; i < lives; i++){
+        let li = document.createElement('img');
+        li.src = 'images/Life.png';
+        li.className = 'icon';
+        l.appendChild(li);
+    }
+}
+function loadLevel(){
+    //Update Scene
+    const s = document.getElementById('scene');
+    s.innerHTML = currentlevel.toString().padStart(2,'0');
+    //Reset Clock and Air Timer
+    clock = 0;
+    timer_air = 0;
+    air = _maxair;
+    //Reset Actors
+    actors = [];
+    grid = buildLevel(concatLevel(..._levels[currentlevel]));
+    view = setView(grid);
+    updateFloor();
+    updateTimer();
+}
+function loadTitle(){
+    context.innerHTML = "Press <em>'SPACEBAR'</em> to Begin <br> Press <em>'H'</em> for Help";
+    grid = buildLevel(_levels[currentlevel]);
+    view = setView(grid);
+    drawGrid(grid);
+}
 
 //DEBUG
-
+/*
 let pinput = document.getElementById('pinput');
 let dbg = document.createElement('p');
 document.body.appendChild(dbg);
@@ -666,3 +738,4 @@ function debug(){
    //debug player
    //dbg.innerHTML = `Player.spd ${player.spd} input: ${input} Controller Up: ${controller['ArrowUp']} Left: ${controller['ArrowLeft']} Right: ${controller['ArrowRight']}`;
 }
+*/
