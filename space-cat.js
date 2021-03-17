@@ -3,6 +3,8 @@ class Player{
     constructor(x,y){
         this.x = x;
         this.y = y;
+        this.xofs = 0;
+        this.yofs = 0;
         this.alive = true;
         this.super = false;
         this.win = false;
@@ -12,27 +14,27 @@ class Player{
         this.yframe = 0;
     }
     update(){
+        this.spd++;
         //check super state
         if(this.super){
             this.stime++;
-            if(this.stime > sTime)this.super = false;
+            if(this.stime > _maxsuper)this.super = false;
         }
-        this.spd++;
         if(this.alive){
             if(air<=0){
                 _sfx_death.play();
                 player.alive = false;
                 player.frame = 0;
                 player.yframe = 0;
-                player.spd = 0;
                 lives--;
                 if(lives>=0)drawLives();
                 clock = 0;
                 //Remove all of the enemies from the current screen
                 actors = removeEnemies();
             }
-            if(this.spd >= speed){
-                if(input){
+            if(input){
+                if(this.spd >= pspeed){
+                    this.spd = 0;
                     this.frame++;
                     if(this.frame>1)this.frame=0;
                     let lastpos = {x:this.x , y:this.y};
@@ -40,14 +42,17 @@ class Player{
                         case 'ArrowUp':
                             this.y--;
                             this.yframe = 2;
+                            this.yofs = scale;
                             break;
                         case 'ArrowLeft':
                             this.x--;
                             this.yframe = 1;
+                            this.xofs = scale;
                             break;
                         case 'ArrowRight':
                             this.x++;
                             this.yframe = 0;
+                            this.xofs = -scale;
                             break;
                         default:
                             console.log('YOU SUCK');
@@ -74,6 +79,8 @@ class Player{
                                 _sfx_stuck.play();
                                 this.x = lastpos.x;
                                 this.y = lastpos.y;
+                                this.xofs = 0;
+                                this.yofs = 0;
                             }
                         }else{
                             if(currentpos.kind == 'key'){
@@ -110,20 +117,18 @@ class Player{
                         context.innerHTML = 'Level Complete <br> BONUS 1000';
                         updateScore(1000);
                     }
-                    this.spd = 0;
                 }
             }
         }else{
+            this.frame++;
             //if the player isn't alive, he either won the level or lost it
             if(this.win){
-                //display victory animation
+                if(this.frame>1)this.frame = 0;
+                this.yframe++;
+                if(this.yframe > 2)this.yframe = 0;
             }else{
                 //display death animation
-                if(this.spd >= speed*2){
-                    this.spd = 0;
-                    this.frame++;
-                    if(this.frame>8)this.frame=8;
-                }
+                if(this.frame>8)this.frame=8;
             }
         }
     }
@@ -131,13 +136,15 @@ class Player{
         let spr;
         if(this.super){
             spr = _spr_super;
-        }else if(!this.alive){
+        }else if(!this.alive && !this.win){
             spr = _spr_dead;
         }else{
             spr = _spr_player;
         }
-        //drawRect(this.x,this.y);
-        drawSprite(spr,this.x,this.y,this.frame,this.yframe);
+        if(this.xofs < 0)this.xofs += scale/pspeed;
+        if(this.xofs > 0)this.xofs -= scale/pspeed;
+        if(this.yofs > 0)this.yofs -= scale/pspeed;
+        drawSprite(spr,this.x,this.y,this.frame,this.yframe,this.xofs,this.yofs);
     }
 }
 class Wall{
@@ -184,7 +191,7 @@ class Goal extends Concrete{
     }
     draw(){
         drawSprite(_spr_goal, this.x, this.y, 0, 0);
-        let gline = ((this.y - view.y) * scale) + scale;
+        let gline = ((this.y - view.y) * scale) + scale - view.yofs;
         ctx.strokeStyle = '#fff';
         ctx.beginPath();
         ctx.moveTo(scale,gline);
@@ -218,54 +225,64 @@ class Door{
     }
 }
 class Actor{
-    constructor(x,y,dir){
+    constructor(x,y,dir,frame=0){
         this.x = x;
         this.y = y;
-        this.spd = 0;
+        this.xofs = 0;
+        this.yofs = 0;
+        this.frame = frame;
         this.dir = dir;
         this.lastdir = this.dir;
     }
     update(){
-        this.spd++;
-        if(this.spd >= speed){
-            this.spd = 0;
-            this.frame++;
-            if(this.y > view.bottom){
-                if(actors.length >= actorCap){
-                    replaceActor(this);
+        this.frame++;
+        //If We've Reached the Bottom of the Screen
+        if(this.y > view.bottom){
+            //This MAY change
+            if(actors.length >= actorCap){
+                replaceActor(this);
+            }else{
+                placeActor(this);
+            }
+        }
+        //Determine Direction
+        if(grid[this.y+1][this.x] == 'empty'){
+            if(this.dir != 'down')this.lastdir = this.dir;
+            this.dir = 'down';
+        }
+        switch (this.dir){
+            case 'down':
+                this.y++;
+                if(this.col){
+                    this.y--;
+                    this.dir = this.lastdir;
                 }else{
-                    placeActor(this);
+                    //Set the Offset
+                    this.yofs = -scale;
                 }
-            }
-            if(grid[this.y+1][this.x] == 'empty'){
-                if(this.dir != 'down')this.lastdir = this.dir;
-                this.dir = 'down';
-            }
-            switch (this.dir){
-                case 'down':
-                    this.y++;
-                    if(this.col){
-                        this.y--;
-                        this.dir = this.lastdir;
-                    }
-                    break;
-                case 'left':
-                    this.x--;
-                    if(this.col){
-                        this.x++;
-                        this.dir = 'right';
-                        this.lastdir = this.dir;
-                    }
-                    break;
-                case 'right':
+                break;
+            case 'left':
+                this.x--;
+                if(this.col){
                     this.x++;
-                    if(this.col){
-                        this.x--;
-                        this.dir = 'left';
-                        this.lastdir = this.dir;
-                    }
-                    break;
-            }
+                    this.dir = 'right';
+                    this.lastdir = this.dir;
+                }else{
+                    //Set the offset
+                    this.xofs = scale;
+                }
+                break;
+            case 'right':
+                this.x++;
+                if(this.col){
+                    this.x--;
+                    this.dir = 'left';
+                    this.lastdir = this.dir;
+                }else{
+                    //Set the offset
+                    this.xofs = -scale;
+                }
+                break;
         }
     }
     get col(){
@@ -279,36 +296,34 @@ class Actor{
         }
         return false;
     }
-    get subpix(){
-        return scale/speed*this.spd;
-    }
 }
 class Enemy extends Actor{
-    constructor(x,y,dir){
-        super(x,y,dir);
+    constructor(x,y,dir,frame=0){
+        super(x,y,dir,frame);
         this.kind = 'enemy';
-        this.frame = 0;
     }
     draw(){
-        //ctx.fillStyle = 'red';
-        //drawRect(this.x,this.y);
+        if(this.xofs < 0)this.xofs += scale/speed;
+        if(this.xofs > 0)this.xofs -= scale/speed;
+        if(this.yofs < 0)this.yofs += scale/speed;
         if(this.frame > 1)this.frame = 0;
         let yframe = 0;
         if(this.dir == 'right') yframe = 1;
         if(this.dir == 'down') yframe = 2;
-        drawSprite(_spr_ogre,this.x,this.y,this.frame,yframe);
-        
+        drawSprite(_spr_ogre,this.x,this.y,this.frame,yframe,this.xofs,this.yofs);
     }
 }
 class Coin extends Actor{
-    constructor(x,y,dir){
-        super(x,y,dir);
+    constructor(x,y,dir,frame=0){
+        super(x,y,dir,frame);
         this.kind = 'coin';
-        this.frame = 0;
     }
     draw(){
+        if(this.xofs < 0)this.xofs += scale/speed;
+        if(this.xofs > 0)this.xofs -= scale/speed;
+        if(this.yofs < 0)this.yofs += scale/speed;
         if(this.frame > 7)this.frame = 0;
-        drawSprite(_spr_coin,this.x,this.y,this.frame);
+        drawSprite(_spr_coin,this.x,this.y,this.frame,0,this.xofs,this.yofs);
     }
 }
 class Key{
@@ -336,10 +351,12 @@ class Life{
 class View{
     constructor(y){
         this.y = y;
+        this.yofs = 0;
         this.height = 25;
         this.bottom = this.y + this.height;
     }
     update(){
+        if(this.yofs > 0)this.yofs -= scale/pspeed;
         this.bottom = this.y + this.height;
     }
 }
@@ -353,9 +370,9 @@ const gridChars = {'#':'wall','B':'border','D':'drywall','d':'door','k':'key','l
 const controller = trackKeys(['ArrowUp','ArrowLeft','ArrowRight','r','R',' ','Spacebar','h','H','y','Y','n','N']);
 //Game Parameters
 const scale = 24;
-const speed = 7; //how many frames pass before an actor can update their position.
+const speed = 8; //how many frames pass before an actor can update their position. - Must be a factor of 24
+const pspeed = 8; //how many frames pass before the player can perform an action. - Must be a factor of 24
 const actorCap = 10;
-const sTime = 300; //super time in frames
 const _pvCoin = 50; //Points for picking up a coin
 const _pvFloor = 10; //Points for advancing a floor
 const _pvKey = 25; //Points for picking up a key
@@ -363,6 +380,7 @@ const _pvEnemy = 100; //Points for killing an enemy
 const _second = 60;
 const _maxair = 90;
 const _maxitem = 5;
+const _maxsuper = 300; //super time in frames
 
 //Sprites
 const _spr_player = document.createElement('img');
@@ -408,14 +426,15 @@ let score = 0; // the players current score
 let grid; // the grid is our display divided by (scale) pixel cells.  It has 24 columns and 25 rows.
 let view; // the viewport
 let goal; // a numerical value
-let clock = 0;
-let timer_spawn = 60;
-let timer_reset = 150;
+let clock = 0; //our global clock
+let timer_spawn = 40; //how often we spawn a new actor
+let timer_reset = 150; //how long before we reset the game
+let timer_air = 0; // ***OMIT***
 let currentfloor = 0;
 let currentlevel = 0;
 let currentloop = 0;
 let air = _maxair;
-let timer_air = 0;
+
 
 
 loadTitle();
@@ -425,32 +444,36 @@ function game(){
     function update(){
         if(player){
             clock++;
-            getInput();
-            //timer
             if(player.alive){
-                timer_air++;
-                if(timer_air >= _second){
-                    timer_air = 0;
+                //Every 120 Frames - Reset the Clock
+                if(clock > 120)clock = 1;
+                //Every 60 Frames - Subtract 1 from timer
+                if(!(clock%60)){
                     air--;
                     updateTimer();
                 }
-            }
-            //update and redraw all sprites
-            player.update();
-            if(player.alive){
-                //Spawn Enemy
-                if(clock >= timer_spawn)spawnActor();
-                for(let actor of actors){
-                    actor.update();
+                //Every 40 Frames - Spawn a new Actor
+                if(!(clock%40)){
+                    spawnActor();
                 }
-                //Check for Collisions:
+                //Every (speed) Frames - Update Actor pos
+                if(!(clock%speed)){
+                    //Update Actor Positions
+                    for(let actor of actors){
+                        actor.update();
+                    }
+                }
+                getInput();
+                player.update();
                 for(let actor of actors){
                     if(overlap(player,actor))touchActor(actor);
                 }
-            }else{
+            }else{ //If the Player isn't Alive
+                if(!(clock%8)){
+                    player.update();
+                }
                 if(player.win){
-                    //Handle for winning
-                    if(clock >= timer_reset){
+                    if(clock >= timer_reset*2){
                         currentlevel++;
                         if(currentlevel >= _levels.length){
                             currentlevel = 1;
@@ -459,20 +482,20 @@ function game(){
                         player.alive = true;
                         context.innerHTML = '';
                         loadLevel();
+                        clock = 1;
                     }
-                }else{
+                }else{ //If the Player died
                     if(lives>=0){
                         if(clock >= timer_reset){
                             player.alive = true;
                             player.frame = 0;
                             player.yframe = 0;
-                            clock = 0;
-                            timer_air = 0;
                             air = _maxair;
                             updateTimer();
                             for(let a of actors){
                                 placeActor(a);
                             }
+                            clock = 1;
                         }
                     }else{
                         //Draw Game Over Screen
@@ -580,31 +603,34 @@ function drawActors(){
         actor.draw();
     }
 }
-function drawGUI(){
-    //let hud = document.getElementById('pinput');
-    //hud.innerHTML = `Lives: ${lives} Keys: ${keys} Score: ${score}`;
-
-}
-function drawRect(ox,oy){
-    let x = ox * scale;
-    let y = (oy - view.y) * scale;
-    ctx.fillRect(x,y,scale,scale);
-}
-function drawSprite(src,ox,oy,xframe = 0,yframe = 0){
-    let x = ox * scale;
-    let y = (oy - view.y) * scale;
+function drawSprite(src, ox, oy, xframe = 0, yframe = 0, xofs = 0, yofs = 0){
+    let x = (ox * scale) + xofs;
+    let y = ((oy - view.y) * scale) + yofs - view.yofs;
     let sx = xframe*scale;
     let sy = yframe*scale;
     //cframe * scale, cframe * scale, cframe * scale + scale
     ctx.drawImage(src,sx,sy,scale,scale,x,y,scale,scale);
 }
 function overlap(obj1,obj2){
+    //check if two sprites overlap
+    const o1x = (obj1.x * scale) + obj1.xofs;
+    const o1y = ((obj1.y - view.y) * scale) + obj1.yofs;
+    const o2x = (obj2.x * scale) + obj2.xofs;
+    const o2y = ((obj2.y - view.y) * scale) + obj2.yofs;
+
+    if(((o1x >= o2x && o1x < o2x + scale) || (o1x + scale > o2x && o1x + scale <= o2x + scale)) &&
+        ((o1y >= o2y && o1y < o2y + scale) || (o1y + scale > o2y && o1y + scale <= o2y + scale))){
+        return true;
+    }else{
+        return false;
+    }
+    /*
     //check if two items have the same x and y;
     if(obj1.x==obj2.x && obj1.y==obj2.y){
         return true;
     }else{
         return false;
-    }
+    }*/
 }
 function touchActor(actor){
     //do something
@@ -662,10 +688,16 @@ function setView(grid){
 }
 function scrollView(){
     //get the player's relative position.
-    let playerY = player.y - view.y;
+    let playerY = (player.y) - view.y;
     //if the player's relative height is higher than halfawy, scroll the screen.
-    if(playerY <= Math.ceil(view.height/2))view.y--;
-    if(view.y < 0)view.y = 0;
+    if(playerY <= Math.ceil(view.height/2)){
+        view.y--;
+        view.yofs = scale;
+    }
+    if(view.y < 0){
+        view.y = 0;
+        view.yofs = 0;
+    }
     view.update();
 }
 function spawnActor(){
@@ -687,7 +719,6 @@ function spawnActor(){
             placeActor(actor);
         }
     }
-    clock = 0;
 }
 function placeActor(actor){
     //the 'valid'spawn point needs to be at least 1 grid spot above the y
@@ -792,24 +823,3 @@ function loadTitle(){
     view = setView(grid);
     drawGrid(grid);
 }
-
-//DEBUG
-/*
-let pinput = document.getElementById('pinput');
-let dbg = document.createElement('p');
-document.body.appendChild(dbg);
-function debug(){
-    //debug enemies
-    let a = actors[0];
-    let output = `clock: ${clock}<br>viewY: ${view.y} viewTop: ${view.top} viewBottom: ${view.bottom}<br>`;
-    for(let actor of actors){
-        print(actor);
-    }
-    dbg.innerHTML = output;
-    function print(a){
-        output += `x: ${a.x} y: ${a.y} dir: ${a.dir} lastdir: ${a.lastdir} speed: ${a.spd} kind: ${a.kind}<br>`;
-    }
-   //debug player
-   //dbg.innerHTML = `Player.spd ${player.spd} input: ${input} Controller Up: ${controller['ArrowUp']} Left: ${controller['ArrowLeft']} Right: ${controller['ArrowRight']}`;
-}
-*/
