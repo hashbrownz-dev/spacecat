@@ -93,3 +93,19 @@ h1{
 .copy{
     text-align: center;
 }
+#help{
+    width: fit-content;
+    margin: 0 auto;
+    border: 1px solid #fff;
+    text-align: center;
+    padding: 24px;
+    background-color: #000;
+    position: relative;
+    top: -480px;
+}
+#help > h2{
+    margin-top: 0;
+}
+#help > p{
+    margin-bottom: 0;
+}

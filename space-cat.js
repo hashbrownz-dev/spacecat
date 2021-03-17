@@ -19,6 +19,18 @@ class Player{
         }
         this.spd++;
         if(this.alive){
+            if(air<=0){
+                _sfx_death.play();
+                player.alive = false;
+                player.frame = 0;
+                player.yframe = 0;
+                player.spd = 0;
+                lives--;
+                if(lives>=0)drawLives();
+                clock = 0;
+                //Remove all of the enemies from the current screen
+                actors = removeEnemies();
+            }
             if(this.spd >= speed){
                 if(input){
                     this.frame++;
@@ -47,25 +59,40 @@ class Player{
                         if(currentpos.category == 'wall'){
                             if((this.super && currentpos.solid==false) || currentpos.kind == 'soft'){
                                 //break thru the wall
+                                _sfx_wall.currentTime = 0;
+                                _sfx_wall.play();
                                 grid[this.y][this.x] = 'empty';
                             }else if(keys > 0 && currentpos.kind == 'door'){
                                 //if it is a door and  you got them keys, open dat bitch
+                                _sfx_door.play();
                                 keys--;
                                 drawKeys();
                                 grid[this.y][this.x] = 'empty';
                             }else{
                                 //Cannot pass through a solid wall.  The player is moved to their last position.
+                                _sfx_stuck.currentTime = 0;
+                                _sfx_stuck.play();
                                 this.x = lastpos.x;
                                 this.y = lastpos.y;
                             }
                         }else{
                             if(currentpos.kind == 'key'){
-                                score+=_pvKey;
+                                //Pick up a key
+                                _sfx_key.play();
                                 updateScore(_pvKey);
                                 keys++;
+                                if(keys>_maxitem){
+                                    keys = _maxitem;
+                                    updateScore(_pvKey*5);
+                                }
                                 drawKeys();
                             }else{
+                                _sfx_life.play();
                                 lives++;
+                                if(lives>_maxitem){
+                                    lives = _maxitem;
+                                    updateScore(_pvKey*5);
+                                }
                                 drawLives();
                             }
                             grid[this.y][this.x] = 'empty';
@@ -78,6 +105,10 @@ class Player{
                     if(this.y == goal){
                         this.alive = false;
                         this.win = true;
+                        //play sound change context menu
+                        _sfx_win.play();
+                        context.innerHTML = 'Level Complete <br> BONUS 1000';
+                        updateScore(1000);
                     }
                     this.spd = 0;
                 }
@@ -129,9 +160,6 @@ class Concrete{
         this.solid = true;
         this.kind = 'concrete';
     }
-    /*draw(){
-        drawSprite(_spr_walls, this.x, this.y, 7, 0);
-    }*/
 }
 class Beam extends Concrete{
     constructor(x,y,piece){
@@ -139,7 +167,6 @@ class Beam extends Concrete{
         this.piece = piece;
     }
     draw(){
-        //let xframe = Number(this.piece);
         drawSprite(_spr_walls, this.x, this.y, this.piece, 0);
     }
 }
@@ -149,6 +176,21 @@ class Border extends Concrete{
     }
     draw(){
         drawSprite(_spr_walls, this.x, this.y, 7, 0);
+    }
+}
+class Goal extends Concrete{
+    constructor(x,y){
+        super(x,y);
+    }
+    draw(){
+        drawSprite(_spr_goal, this.x, this.y, 0, 0);
+        let gline = ((this.y - view.y) * scale) + scale;
+        ctx.strokeStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(scale,gline);
+        ctx.lineTo(canvas.width-scale,gline);
+        ctx.lineWidth = 2;
+        ctx.stroke();
     }
 }
 class Drywall{
@@ -305,6 +347,7 @@ class View{
 //Initialization
 const canvas = document.getElementById('display');
 const context = document.getElementById('context');
+const help = document.getElementById('help');
 const ctx = canvas.getContext('2d');
 const gridChars = {'#':'wall','B':'border','D':'drywall','d':'door','k':'key','l':'life','@':'player','G':'goal', '1':'bvert','2':'bhor','3':'bbcl','4':'bbcr','5':'bbtl','6':'bbtr'};
 const controller = trackKeys(['ArrowUp','ArrowLeft','ArrowRight','r','R',' ','Spacebar','h','H','y','Y','n','N']);
@@ -319,9 +362,8 @@ const _pvKey = 25; //Points for picking up a key
 const _pvEnemy = 100; //Points for killing an enemy
 const _second = 60;
 const _maxair = 90;
-//Levels
-//_levels[0] == start screen
-const _levels = [_title,[1,2,1],[2,1,3,1,4,3,2,1,1],[6,5,4,3,2,1,2,1],[1,9,8,7,6,5,4,3,2,1]];
+const _maxitem = 5;
+
 //Sprites
 const _spr_player = document.createElement('img');
 _spr_player.src = 'images/Cat.png';
@@ -339,6 +381,23 @@ const _spr_key = document.createElement('img');
 _spr_key.src = 'images/Key.png';
 const _spr_life = document.createElement('img');
 _spr_life.src = 'images/Life.png';
+const _spr_goal = document.createElement('img');
+_spr_goal.src = 'images/Goal.png';
+
+//SFX
+const _sfx_death = new Audio('sounds/sfx_cat-die.wav'); //Death
+const _sfx_gameover = new Audio('sounds/sfx_cat-lose.wav'); //Game Over
+const _sfx_win = new Audio('sounds/sfx_cat-win.wav'); //Level Complete
+const _sfx_coin_get = new Audio('sounds/sfx_coin-get.wav'); //Grab Coin
+const _sfx_coin_spawn = new Audio('sounds/sfx_coin-spawn.wav'); //Spawn Coin
+const _sfx_door = new Audio('sounds/sfx_door.wav'); //Open Door
+const _sfx_floor = new Audio('sounds/sfx_floor.wav'); //Floor Transition
+const _sfx_key = new Audio('sounds/sfx_key.wav'); //Grab Key
+const _sfx_life = new Audio('sounds/sfx_life.wav'); //Grab Life
+const _sfx_ogre = new Audio('sounds/sfx_ogre.wav'); //Kill Ogre
+const _sfx_walk = new Audio('sounds/sfx_walk.wav'); //Cat Walk
+const _sfx_wall = new Audio('sounds/sfx_wall.wav'); //Break Wall
+const _sfx_stuck = new Audio('sounds/sfx_cat-stuck.wav'); //Cat Stuck
 
 let input;
 let player; // the variable that refers to the current player object
@@ -354,8 +413,10 @@ let timer_spawn = 60;
 let timer_reset = 150;
 let currentfloor = 0;
 let currentlevel = 0;
+let currentloop = 0;
 let air = _maxair;
 let timer_air = 0;
+
 
 loadTitle();
 game();
@@ -389,10 +450,16 @@ function game(){
             }else{
                 if(player.win){
                     //Handle for winning
-                    currentlevel++;
-                    if(currentlevel >= _levels.length)currentlevel = 1;
-                    player.alive = true;
-                    loadLevel();
+                    if(clock >= timer_reset){
+                        currentlevel++;
+                        if(currentlevel >= _levels.length){
+                            currentlevel = 1;
+                            currentloop++;
+                        }
+                        player.alive = true;
+                        context.innerHTML = '';
+                        loadLevel();
+                    }
                 }else{
                     if(lives>=0){
                         if(clock >= timer_reset){
@@ -414,13 +481,16 @@ function game(){
                         if(controller['n']||controller['N']){
                             player = undefined;
                             currentlevel = 0;
+                            currentloop = 0;
                             loadTitle();
                         }
                     }
                 }
             }
         }else{
+            if(controller['h']||controller['H']) help.style.display = 'block'; 
             if(controller[' ']||controller['Spacebar']){
+                help.style.display = 'none';
                 startGame();
             }
         }
@@ -479,7 +549,7 @@ function populate(char,x,y){
             return new Life(x,y);
         case 'goal':
             goal = y;
-            return new Border(x,y);
+            return new Goal(x,y);
         case 'bvert':
             return new Beam(x,y,1);
         case 'bhor':
@@ -540,11 +610,14 @@ function touchActor(actor){
     //do something
     if(actor.kind == 'enemy'){
         if(player.super){
-            //score+=_pvEnemy;
+            //Kill Enemy
+            _sfx_ogre.currentTime = 0;
+            _sfx_ogre.play();
             updateScore(_pvEnemy);
             actors.splice(actors.indexOf(actor),1);// remove the enemy from the actor array
         }else{
             //Player Death
+            _sfx_death.play();
             player.alive = false;
             player.frame = 0;
             player.yframe = 0;
@@ -556,8 +629,8 @@ function touchActor(actor){
             actors = removeEnemies();
         }
     }else{
-        //we need code here for handling our super state
-        //score+=_pvCoin;
+        //Grab Coin
+        _sfx_coin_get.play();
         updateScore(_pvCoin);
         player.super = true;
         player.stime = 0;
@@ -567,7 +640,6 @@ function touchActor(actor){
 function trackKeys(keys){
     let down = Object.create(null);
     function track(event){
-        //console.log(event.key);
         event.preventDefault();
         if(keys.includes(event.key)) {
             down[event.key] = event.type == 'keydown';
@@ -607,6 +679,8 @@ function spawnActor(){
             let actor = new Coin(0,0,dir);
             actors.push(actor);
             placeActor(actor);
+            _sfx_coin_spawn.currentTime = 0;
+            _sfx_coin_spawn.play();
         }else{
             let actor = new Enemy(0,0,dir);
             actors.push(actor);
@@ -700,7 +774,7 @@ function drawLives(){
 function loadLevel(){
     //Update Scene
     const s = document.getElementById('scene');
-    s.innerHTML = currentlevel.toString().padStart(2,'0');
+    s.innerHTML = (currentlevel+((_levels.length-1)*currentloop)).toString().padStart(2,'0');
     //Reset Clock and Air Timer
     clock = 0;
     timer_air = 0;
